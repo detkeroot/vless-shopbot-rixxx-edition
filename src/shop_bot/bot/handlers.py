@@ -39,7 +39,9 @@ from shop_bot.data_manager.database import (
     update_key_info, set_trial_used, set_terms_agreed, get_setting, get_all_hosts,
     get_plans_for_host, get_plan_by_id, log_transaction, get_referral_count,
     add_to_referral_balance, create_pending_transaction, get_all_users,
-    set_referral_balance, set_referral_balance_all
+    set_referral_balance, set_referral_balance_all,
+    set_user_give_permission, hard_delete_user_db, ban_user, unban_user, delete_user_keys,
+    set_custom_referral_percentage, remove_custom_referral_percentage
 )
 
 from shop_bot.config import (
@@ -50,6 +52,32 @@ from shop_bot.config import (
 TELEGRAM_BOT_USERNAME = None
 PAYMENT_METHODS = None
 ADMIN_ID = None
+
+def is_main_admin(user_id: int | str) -> bool:
+    return str(user_id) == get_setting("admin_telegram_id")
+
+def can_use_give(user_id: int) -> bool:
+    if is_main_admin(user_id): return True
+    user_data = get_user(user_id)
+    return bool(user_data and user_data.get('can_give'))
+
+def generate_client_email(user_id: int, key_number: int, host_name: str, is_trial: bool = False) -> str:
+    user_data = get_user(user_id)
+    uname = user_data.get('username') if user_data else None
+    
+    if uname:
+        uname_clean = re.sub(r'[^a-zA-Z0-9]', '', uname)
+    else:
+        uname_clean = "user"
+        
+    if not uname_clean:
+        uname_clean = "user"
+        
+    host_clean = host_name.replace(' ', '').lower()
+    suffix = "trial@telegram.bot" if is_trial else f"{host_clean}.bot"
+    
+    return f"{uname_clean}_{user_id}_key{key_number}@{suffix}"
+
 CRYPTO_BOT_TOKEN = get_setting("cryptobot_token")
 
 logger = logging.getLogger(__name__)
@@ -428,8 +456,11 @@ def get_user_router() -> Router:
         referral_count = get_referral_count(user_id)
         balance = user_data.get('referral_balance', 0)
 
+        custom_pct = user_data.get('custom_referral_percentage')
+        rate_text = f" (Ваша персональная ставка: {custom_pct}% 💎)" if custom_pct is not None else ""
+        
         text = (
-            "🤝 <b>Реферальная программа</b>\n\n"
+            f"🤝 <b>Реферальная программа</b>{rate_text}\n\n"
             "Приглашайте друзей и получайте вознаграждение с <b>каждой</b> их покупки!\n\n"
             f"<b>Ваша реферальная ссылка:</b>\n<code>{referral_link}</code>\n\n"
             f"<b>Приглашено пользователей:</b> {referral_count}\n"
@@ -605,9 +636,11 @@ def get_user_router() -> Router:
         await message.edit_text(f"Отлично! Создаю для вас бесплатный ключ на {get_setting('trial_duration_days')} дня на сервере \"{host_name}\"...")
 
         try:
+            key_number = get_next_key_number(user_id)
+            email = generate_client_email(user_id, key_number, host_name, is_trial=True)
             result = await xui_api.create_or_update_key_on_host(
                 host_name=host_name,
-                email=f"user{user_id}-key{get_next_key_number(user_id)}-trial@telegram.bot",
+                email=email,
                 days_to_add=int(get_setting("trial_duration_days"))
             )
             if not result:
@@ -702,7 +735,7 @@ def get_user_router() -> Router:
         linux_url = get_setting("linux_url")
 
         await callback.message.edit_text(
-            "Выберите вашу платформу для инструкции по подключению VLESS:",
+            "Выберите вашу платформу для получения инструкции:",
             reply_markup=keyboards.create_howto_vless_keyboard_key(
             android_url=android_url,
             windows_url=windows_url,
@@ -722,7 +755,7 @@ def get_user_router() -> Router:
         linux_url = get_setting("linux_url")
 
         await callback.message.edit_text(
-            "Выберите вашу платформу для инструкции по подключению VLESS:",
+            "Выберите вашу платформу для получения инструкции:",
             reply_markup=keyboards.create_howto_vless_keyboard(
             android_url=android_url,
             windows_url=windows_url,
@@ -1229,8 +1262,7 @@ def get_user_router() -> Router:
 
     @user_router.message(Command(commands=["give"]))
     async def admin_give_key(message: types.Message, bot: Bot):
-        admin_id = get_setting("admin_telegram_id")
-        if str(message.from_user.id) != admin_id:
+        if not can_use_give(message.from_user.id):
             return
             
         args = message.text.split()
@@ -1252,7 +1284,7 @@ def get_user_router() -> Router:
         
         host_name = hosts[0]['host_name']
         key_number = get_next_key_number(target_user_id)
-        email = f"user{target_user_id}-key{key_number}@{host_name.replace(' ', '').lower()}.bot"
+        email = generate_client_email(target_user_id, key_number, host_name)
         
         processing_msg = await message.answer(f"Создаю ключ на {days} дней...")
         
@@ -1277,6 +1309,123 @@ def get_user_router() -> Router:
             await processing_msg.edit_text(f"✅ Успешно! Ключ на {days} дней выдан пользователю {target_user_id}.")
         except Exception as e:
             await processing_msg.edit_text(f"✅ Ключ создан, но отправить в ЛС не удалось (юзер не запустил бота?): {e}")
+
+    @user_router.message(Command(commands=["grant"]))
+    async def cmd_grant(message: types.Message):
+        if not is_main_admin(message.from_user.id): return
+        args = message.text.split()
+        if len(args) != 2: return await message.answer("Формат: /grant <ID>")
+        set_user_give_permission(int(args[1]), True)
+        await message.answer(f"✅ Пользователю {args[1]} выданы права на использование /give.")
+
+    @user_router.message(Command(commands=["revoke"]))
+    async def cmd_revoke(message: types.Message):
+        if not is_main_admin(message.from_user.id): return
+        args = message.text.split()
+        if len(args) != 2: return await message.answer("Формат: /revoke <ID>")
+        set_user_give_permission(int(args[1]), False)
+        await message.answer(f"❌ У пользователя {args[1]} забраны права на /give.")
+
+    @user_router.message(Command(commands=["ban"]))
+    async def cmd_ban(message: types.Message):
+        if not is_main_admin(message.from_user.id): return
+        args = message.text.split()
+        if len(args) != 2: return await message.answer("Формат: /ban <ID>")
+        target_id = int(args[1])
+        ban_user(target_id)
+        await message.answer(f"🔨 Пользователь {target_id} заблокирован.")
+
+    @user_router.message(Command(commands=["unban"]))
+    async def cmd_unban(message: types.Message):
+        if not is_main_admin(message.from_user.id): return
+        args = message.text.split()
+        if len(args) != 2: return await message.answer("Формат: /unban <ID>")
+        target_id = int(args[1])
+        unban_user(target_id)
+        await message.answer(f"🕊 Пользователь {target_id} разблокирован.")
+
+    @user_router.message(Command(commands=["delete_user"]))
+    async def cmd_delete_user(message: types.Message):
+        if not is_main_admin(message.from_user.id): return
+        args = message.text.split()
+        if len(args) != 2: return await message.answer("Формат: /delete_user <ID>")
+        
+        target_id = int(args[1])
+        processing_msg = await message.answer("Удаляю пользователя с серверов и из БД...")
+        
+        # 1. Сначала удаляем ключи из панели RIXXX (XUI)
+        keys_to_revoke = get_user_keys(target_id)
+        success_count = 0
+        for key in keys_to_revoke:
+            result = await xui_api.delete_client_on_host(key['host_name'], key['key_email'])
+            if result: success_count += 1
+            
+        # 2. Жестко чистим БД
+        hard_delete_user_db(target_id)
+        
+        await processing_msg.edit_text(
+            f"🗑 Пользователь {target_id} полностью удален.\n"
+            f"Удалено ключей с физических серверов: {success_count} из {len(keys_to_revoke)}.\n"
+            f"Теперь он может заново взять пробный период."
+        )
+
+    @user_router.message(Command(commands=["setref"]))
+    async def cmd_setref(message: types.Message):
+        if not is_main_admin(message.from_user.id): return
+        args = message.text.split()
+        if len(args) != 3: return await message.answer("Формат: /setref <ID> <ПРОЦЕНТ>")
+        
+        try:
+            target_id = int(args[1])
+            percent = float(args[2])
+            set_custom_referral_percentage(target_id, percent)
+            await message.answer(f"💎 Пользователю {target_id} установлен VIP-процент рефералки: {percent}%")
+        except ValueError:
+            await message.answer("Ошибка: ID и ПРОЦЕНТ должны быть числами.")
+
+    @user_router.message(Command(commands=["delref"]))
+    async def cmd_delref(message: types.Message):
+        if not is_main_admin(message.from_user.id): return
+        args = message.text.split()
+        if len(args) != 2: return await message.answer("Формат: /delref <ID>")
+        
+        try:
+            target_id = int(args[1])
+            remove_custom_referral_percentage(target_id)
+            await message.answer(f"🔙 У пользователя {target_id} убран VIP-процент (теперь стандартный).")
+        except ValueError:
+            await message.answer("Ошибка: ID должен быть числом.")
+
+    @user_router.message(Command(commands=["users"]))
+    async def cmd_users_list(message: types.Message):
+        if not is_main_admin(message.from_user.id): return
+        
+        users = get_all_users()
+        if not users:
+            return await message.answer("База пользователей пуста.")
+            
+        # Формируем таблицу
+        lines = [f"{'Telegram ID':<12} | {'Username':<18} | {'Статус':<9} | {'Ключи':<5} | {'Give':<5} | {'VIP %':<6}"]
+        lines.append("-" * 74)
+        
+        for u in users:
+            uid = str(u['telegram_id'])
+            uname = f"@{u['username'][:17]}" if u.get('username') else "N/A"
+            status = "Забанен" if u.get('is_banned') else "Активен"
+            keys_count = str(len(get_user_keys(u['telegram_id'])))
+            can_give = "Да" if u.get('can_give') else "Нет"
+            vip_pct = f"{u.get('custom_referral_percentage')}%" if u.get('custom_referral_percentage') is not None else "-"
+            
+            lines.append(f"{uid:<12} | {uname:<18} | {status:<9} | {keys_count:<5} | {can_give:<5} | {vip_pct:<6}")
+            
+        # Записываем в виртуальный файл
+        file_data = "\n".join(lines).encode('utf-8')
+        document = BufferedInputFile(file_data, filename="vpn_users_report.txt")
+        
+        await message.answer_document(
+            document, 
+            caption=f"📊 Выгрузка базы данных.\nВсего пользователей: {len(users)}"
+        )
 
     return user_router
 
@@ -1528,7 +1677,7 @@ async def process_successful_payment(bot: Bot, metadata: dict):
         email = ""
         if action == "new":
             key_number = get_next_key_number(user_id)
-            email = f"user{user_id}-key{key_number}@{host_name.replace(' ', '').lower()}.bot"
+            email = generate_client_email(user_id, key_number, host_name)
         elif action == "extend":
             key_data = get_key_by_id(key_id)
             if not key_data or key_data['user_id'] != user_id:
@@ -1558,7 +1707,11 @@ async def process_successful_payment(bot: Bot, metadata: dict):
         referrer_id = user_data.get('referred_by')
 
         if referrer_id:
-            percentage = Decimal(get_setting("referral_percentage") or "0")
+            referrer_user_data = get_user(referrer_id)
+            if referrer_user_data and referrer_user_data.get('custom_referral_percentage') is not None:
+                percentage = Decimal(str(referrer_user_data.get('custom_referral_percentage')))
+            else:
+                percentage = Decimal(get_setting("referral_percentage") or "0")
             
             reward = (Decimal(str(price)) * percentage / 100).quantize(Decimal("0.01"))
             

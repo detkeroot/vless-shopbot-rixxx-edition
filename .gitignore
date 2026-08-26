@@ -19,3 +19,5 @@ dist/
 *.DS_Store
 
 test
+repomix-output.md
+vpn_users_report.txt

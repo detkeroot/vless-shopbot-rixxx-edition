@@ -21,8 +21,9 @@ def initialize_db():
                     registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     is_banned BOOLEAN DEFAULT 0,
                     referred_by INTEGER,
-                    referral_balance REAL DEFAULT 0,
-                    referral_balance_all REAL DEFAULT 0
+                    referral_balance_all REAL DEFAULT 0,
+                    can_give BOOLEAN DEFAULT 0,
+                    custom_referral_percentage REAL DEFAULT NULL
                 )
             ''')
             cursor.execute('''
@@ -159,6 +160,18 @@ def run_migration():
             logging.info(" -> The column 'referral_balance_all' is successfully added.")
         else:
             logging.info(" -> The column 'referral_balance_all' already exists.")
+            
+        if 'can_give' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN can_give BOOLEAN DEFAULT 0")
+            logging.info(" -> The column 'can_give' is successfully added.")
+        else:
+            logging.info(" -> The column 'can_give' already exists.")
+            
+        if 'custom_referral_percentage' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN custom_referral_percentage REAL DEFAULT NULL")
+            logging.info(" -> The column 'custom_referral_percentage' is successfully added.")
+        else:
+            logging.info(" -> The column 'custom_referral_percentage' already exists.")
         
         logging.info("The table 'users' has been successfully updated.")
 
@@ -824,3 +837,40 @@ def delete_user_keys(user_id: int):
             conn.commit()
     except sqlite3.Error as e:
         logging.error(f"Failed to delete keys for user {user_id}: {e}")
+
+def set_user_give_permission(user_id: int, can_give: bool):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET can_give = ? WHERE telegram_id = ?", (int(can_give), user_id))
+            conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update give permission for {user_id}: {e}")
+
+def hard_delete_user_db(user_id: int):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM vpn_keys WHERE user_id = ?", (user_id,))
+            cursor.execute("DELETE FROM users WHERE telegram_id = ?", (user_id,))
+            conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Failed to hard delete user {user_id}: {e}")
+
+def set_custom_referral_percentage(user_id: int, percentage: float):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET custom_referral_percentage = ? WHERE telegram_id = ?", (percentage, user_id))
+            conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Failed to set custom referral percentage for {user_id}: {e}")
+
+def remove_custom_referral_percentage(user_id: int):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET custom_referral_percentage = NULL WHERE telegram_id = ?", (user_id,))
+            conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Failed to remove custom referral percentage for {user_id}: {e}")

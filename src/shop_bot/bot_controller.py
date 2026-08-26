@@ -5,6 +5,7 @@ from yookassa import Configuration
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode 
+from aiogram.types import BotCommand, BotCommandScopeDefault, BotCommandScopeChat
 
 from shop_bot.data_manager import database
 from shop_bot.bot.handlers import get_user_router
@@ -39,6 +40,35 @@ class BotController:
     async def _start_polling(self, bot, dp, name):
         logger.info(f"BotController: Polling task for '{name}' has been started.")
         try:
+            if name == "ShopBot":
+                # 1. Базовые команды для всех пользователей
+                await bot.set_my_commands(
+                    [BotCommand(command="start", description="Главное меню")],
+                    scope=BotCommandScopeDefault()
+                )
+                
+                # 2. Админские команды только для владельца бота
+                admin_id = database.get_setting("admin_telegram_id")
+                if admin_id:
+                    try:
+                        await bot.set_my_commands(
+                            [
+                                BotCommand(command="start", description="Главное меню"),
+                                BotCommand(command="give", description="Выдать ключ"),
+                                BotCommand(command="grant", description="Дать права на выдачу"),
+                                BotCommand(command="revoke", description="Забрать права"),
+                                BotCommand(command="ban", description="Заблокировать юзера"),
+                                BotCommand(command="unban", description="Разблокировать юзера"),
+                                BotCommand(command="delete_user", description="Удалить юзера и ключи"),
+                                BotCommand(command="users", description="Выгрузить базу в .txt"),
+                                BotCommand(command="setref", description="Задать VIP-процент"),
+                                BotCommand(command="delref", description="Убрать VIP-процент"),
+                            ],
+                            scope=BotCommandScopeChat(chat_id=admin_id)
+                        )
+                    except Exception as e:
+                        logger.warning(f"Could not set admin commands: {e}")
+                        
             await dp.start_polling(bot)
         except asyncio.CancelledError:
             logger.info(f"BotController: Polling task for '{name}' was cancelled.")
