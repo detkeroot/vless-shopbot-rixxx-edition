@@ -275,4 +275,4 @@ docker-compose up -d --build
 - **Оригинальный бот:** [vless-shopbot](https://github.com/evansvl/vless-shopbot) от [@evansvl](https://github.com/evansvl).
 - **Панель управления VPN:** [Panel-Naive-Mieru-by-RIXXX](https://github.com/cwash797-cmd/Panel-Naive-Mieru-by-RIXXX) от [@cwash797-cmd](https://github.com/cwash797-cmd).
 - **RIXXX Edition:** [detker](https://github.com/detkeroot).
-- Проект распространяется под открытой лицензией [MIT](LICENSE).
+- Проект распространяется под открытой лицензией [GNU General Public License v3.0](LICENSE).
