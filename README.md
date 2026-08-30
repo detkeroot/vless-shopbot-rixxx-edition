@@ -10,6 +10,7 @@
   <a href="#-быстрая-установка">Установка</a> •
   <a href="#-интеграция-с-панелью-rixxx">Интеграция с RIXXX</a> •
   <a href="#-настройка-платежных-шлюзов">Платежи</a> •
+  <a href="#-faq-и-решение-проблем">FAQ</a> •
   <a href="#-управление-и-деплой">Docker</a>
 </p>
 
@@ -23,35 +24,38 @@
 
 ---
 
-**VLESS Shop Bot (RIXXX Edition)** — это форк и расширенная редакция популярного Telegram-бота для автоматической продажи VPN-подписок. Проект глубоко адаптирован для работы с панелями **[Panel-Naive-Mieru-by-RIXXX](https://github.com/cwash797-cmd/Panel-Naive-Mieru-by-RIXXX)** и **3x-ui**, оснащен удобной веб-панелью управления, мощным набором Telegram-команд для администратора и саппорта, поддержкой VIP-реферальных ставок и приемом платежей через ЮKassa, CryptoBot, Heleket и TON.
+**VLESS Shop Bot (RIXXX Edition)** — это открытая, расширенная редакция Telegram-бота для автоматизированной продажи VPN-доступа. Бот специально адаптирован для работы в связке с панелями **[Panel-Naive-Mieru-by-RIXXX](https://github.com/cwash797-cmd/Panel-Naive-Mieru-by-RIXXX)** и **3x-ui**.
+
+Проект включает в себя встроенную веб-панель управления, продвинутый набор Telegram-команд для администратора и команды поддержки, гибкую систему персональных реферальных процентов (VIP-ставки), генератор чистых идентификаторов клиентов и автоматический прием платежей через популярные шлюзы (ЮKassa, CryptoBot, Heleket, TonConnect).
 
 ---
 
 ## ✨ Особенности RIXXX Edition
 
 - 🚀 **Полная совместимость с Panel RIXXX & 3x-ui**:
-  - Корректная работа API-интеграции для создания, продления и отзыва клиентов VLESS / NaiveProxy / Mieru / Hysteria2.
-  - Поддержка проксирования веб-панели (порт `1488`) как через классический Nginx, так и через Caddy Reverse Proxy в составе панели RIXXX.
+  - Надежное взаимодействие через REST API для создания, продления и отзыва клиентов (VLESS, NaiveProxy, Mieru, Hysteria2).
+  - Поддержка проксирования веб-панели (порт `1488`) через Caddy (в составе RIXXX) или классический Nginx.
+  - Подробное руководство по интеграции доступно в [RIXXX_INTEGRATION.md](RIXXX_INTEGRATION.md).
 - 🛠️ **Расширенный Telegram Admin Suite**:
-  - Быстрая выдача подписок пользователям прямо из чата Telegram (`/give`).
-  - Система делегирования прав: назначение доверенных модераторов/саппортов на выдачу ключей (`/grant`, `/revoke`).
-  - Управление доступом: блокировка и разблокировка пользователей (`/ban`, `/unban`).
-  - Полное каскадное удаление пользователя (`/delete_user`) — удаляет ключи с физических серверов XUI/RIXXX и очищает профиль в БД (позволяет юзеру при необходимости заново протестировать пробный период).
+  - Быстрая выдача подписок прямо из чата Telegram (`/give`).
+  - Делегирование прав саппортам/модераторам на выдачу ключей (`/grant`, `/revoke`).
+  - Управление доступом: блокировка и разблокировка нарушителей (`/ban`, `/unban`).
+  - Полное каскадное удаление (`/delete_user`): стирает ключи из XUI/RIXXX и очищает БД для сброса триала.
   - Выгрузка базы данных в форматированный текстовый отчет `vpn_users_report.txt` (`/users`).
-  - Автоматическая регистрация скоупа команд администратора в интерфейсе Telegram (`BotCommandScopeChat`).
+  - Автоматическая регистрация скоупа команд администратора в Telegram (`BotCommandScopeChat`).
 - 💎 **Гибкая реферальная система (VIP-проценты)**:
-  - Возможность назначать индивидуальный VIP-процент отчислений для партнеров, блогеров и инфлюенсеров (`/setref`, `/delref`).
-  - Автоматический расчет вознаграждения при покупках и отображение персональной ставки в профиле реферала.
-- 🏷️ **Чистый генератор Email для клиентов**:
-  - Формирование структурированных идентификаторов без спецсимволов: `<username>_<user_id>_key<N>@<host>.bot` и `<username>_<user_id>_key<N>@trial@telegram.bot` для идеального порядка в панели управления.
+  - Назначение персонального VIP-процента отчислений для конкретных партнеров и инфлюенсеров (`/setref`, `/delref`).
+  - Автоматический расчет бонусов при покупках и отображение ставки в интерфейсе бота.
+- 🏷️ **Чистая генерация Email для клиентов**:
+  - Структурированные почтовые адреса без спецсимволов: `<username>_<user_id>_key<N>@<host>.bot` и `<username>_<user_id>_key<N>@trial@telegram.bot`.
 - 💳 **Мульти-эквайринг и автоматизация оплат**:
-  - **ЮKassa**: Банковские карты РФ, СБП, SberPay, фискализация чеков по 54-ФЗ.
-  - **CryptoBot**: Прием USDT, TON, BTC и др. криптовалют в Telegram без сетевых комиссий.
-  - **Heleket**: Мультивалютный крипто-шлюз.
-  - **TonConnect**: Нативная интеграция с кошельками экосистемы TON (Tonkeeper, MyTonWallet).
+  - **ЮKassa**: Банковские карты РФ, СБП, SberPay, фискальные чеки (54-ФЗ).
+  - **CryptoBot**: Прием USDT, TON, BTC в Telegram без комиссий сетей.
+  - **Heleket**: Мультивалютный крипто-эквайринг.
+  - **TonConnect**: Подключение некастодиальных TON-кошельков (Tonkeeper, MyTonWallet).
 - 🖥️ **Веб-панель "Все в одном" (Flask / Dark Theme)**:
-  - Управление серверами/хостами, тарифами, промокодами, пользователями и логами транзакций.
-  - Встроенная двухфакторная аутентификация (2FA / TOTP) для защиты входа в панель.
+  - Управление серверами/хостами, тарифами, промокодами, пользователями, балансами и транзакциями.
+  - Защита входа через двухфакторную аутентификацию (2FA / TOTP).
 
 ---
 
@@ -59,15 +63,15 @@
 
 ```mermaid
 flowchart TD
-    subgraph Clients["👤 Пользователи"]
+    subgraph Clients["👤 Пользователи и Команда"]
         TG["Telegram Клиенты"]
-        Admin["Telegram Администратор"]
+        Admin["Telegram Администратор / Саппорт"]
     end
 
     subgraph BotService["🤖 VLESS Shop Bot Core"]
         Bot["Aiogram 3 (Polling/Webhook)"]
         WebPanel["Flask Web Admin (Port 1488)"]
-        DB[(SQLite Database)]
+        DB[(SQLite Database users.db)]
         BotController["Bot Controller & Scheduler"]
     end
 
@@ -81,7 +85,7 @@ flowchart TD
     subgraph Infrastructure["🌐 VPN Инфраструктура"]
         RIXXX["Panel-Naive-Mieru-by-RIXXX"]
         XUI["3x-ui Panels"]
-        Proxy["Nginx / Caddy Reverse Proxy"]
+        Proxy["Caddy / Nginx Reverse Proxy"]
     end
 
     TG <--> Bot
@@ -93,15 +97,15 @@ flowchart TD
     Payments -->|Webhooks / Callbacks| Proxy
     Proxy -->|Reverse Proxy :1488| WebPanel
 
-    Bot -->|py3xui / REST API| RIXXX
-    Bot -->|py3xui / REST API| XUI
+    Bot -->|REST API| RIXXX
+    Bot -->|REST API| XUI
 ```
 
 ---
 
 ## 📋 Команды Telegram Администратора
 
-Команды доступны владельцу бота (указанному в `admin_telegram_id`), а команда `/give` также доступна пользователям с делегированными правами:
+Команды автоматически регистрируются в меню Telegram для ID, указанного в настройках (`admin_telegram_id`). Команда `/give` также доступна пользователям с правами саппорта:
 
 | Команда | Синтаксис | Описание |
 | :--- | :--- | :--- |
@@ -121,13 +125,13 @@ flowchart TD
 
 ### Вариант 1: Автоматический скрипт установки (Рекомендуется)
 
-Скрипт автоматически установит Docker, Docker Compose, Nginx, Certbot (SSL), клонирует репозиторий и сконфигурирует окружение:
+Скрипт проверяет зависимости, устанавливает Docker, Docker Compose, Nginx, Certbot (SSL), клонирует проект и запускает бота:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/detkeroot/vless-shopbot-rixxx-edition/main/install.sh | sudo bash
 ```
 
-> **Примечание:** Если запустить скрипт повторно на сервере с уже установленным ботом, он автоматически выполнит `git pull` и пересоберет Docker-контейнеры.
+> **Совет:** При повторном запуске скрипта на сервере он автоматически обновит код (`git pull`) и пересоберет контейнеры без потери данных.
 
 ---
 
@@ -149,30 +153,30 @@ curl -sSL https://raw.githubusercontent.com/detkeroot/vless-shopbot-rixxx-editio
    docker-compose logs -f
    ```
 
-Веб-панель будет доступна по адресу `http://IP_СЕРВЕРА:1488` (или по вашему домену при настройке Reverse Proxy).
+Веб-панель будет доступна по адресу `http://IP_СЕРВЕРА:1488` (или по домену через Reverse Proxy).
 
 ---
 
 ## 🔗 Интеграция с панелью RIXXX
 
-Если бот разворачивается на сервере, где уже установлена **Panel-Naive-Mieru-by-RIXXX**, админку бота можно удобно проксировать через Caddy на порт `1488`.
+Если бот работает на том же сервере, что и **Panel-Naive-Mieru-by-RIXXX**, админку бота можно проксировать через встроенный веб-сервер Caddy:
 
-Добавьте хук в шаблон Caddy на сервере с панелью:
+1. Добавьте хук в шаблон Caddy:
+   ```bash
+   cat << 'HOOK' >> /opt/panel-naive-mieru/server/caddyTemplate.js
 
-```bash
-cat << 'HOOK' >> /opt/panel-naive-mieru/server/caddyTemplate.js
+   const _origRender = module.exports.render;
+   module.exports.render = function(cfg, users) {
+       return _origRender(cfg, users) + "\n\nbot.your-domain.com {\n  reverse_proxy 127.0.0.1:1488\n}\n";
+   };
+   HOOK
+   ```
+2. Пересоберите конфигурацию панели:
+   ```bash
+   bash /opt/panel-naive-mieru/update.sh --repair -y
+   ```
 
-const _origRender = module.exports.render;
-module.exports.render = function(cfg, users) {
-    return _origRender(cfg, users) + "\n\nтвой_домен_для_бота.ru {\n  reverse_proxy 127.0.0.1:1488\n}\n";
-};
-HOOK
-```
-
-После добавления хука пересоберите конфигурацию панели:
-```bash
-bash /opt/panel-naive-mieru/update.sh --repair -y
-```
+> 📖 Подробное руководство со всеми нюансами и схемами подключения смотрите в **[RIXXX_INTEGRATION.md](RIXXX_INTEGRATION.md)**.
 
 ---
 
@@ -185,13 +189,13 @@ bash /opt/panel-naive-mieru/update.sh --repair -y
      - **Пароль:** `admin`
 2. **Смена пароля и 2FA**:
    - Перейдите в раздел **Настройки -> Настройки Панели**.
-   - Обязательно смените логин и пароль, при необходимости подключите двухфакторную аутентификацию (Google Authenticator / 2FA App).
+   - Смените логин и пароль, подключите двухфакторную аутентификацию (2FA / TOTP).
 3. **Настройка Telegram**:
    - Укажите **Токен бота** (полученный в [@BotFather](https://t.me/BotFather)).
-   - Укажите **Username бота** (без символа `@`).
+   - Укажите **Username бота** (без `@`).
    - Укажите ваш **Telegram ID Администратора** (узнать можно через [@userinfobot](https://t.me/userinfobot)).
 4. **Подключение серверов (Хостов)**:
-   - В разделе **Настройки** -> **Управление Хостами** введите данные подключения к вашей панели 3x-ui / RIXXX (URL, порт, логин, пароль).
+   - В разделе **Настройки** -> **Управление Хостами** введите данные подключения к вашей панели 3x-ui / RIXXX (URL, порт, логин, пароль, Inbound ID).
 5. **Создание тарифных планов**:
    - Создайте тарифные планы для добавленного хоста (например, *1 месяц — 150 ₽*, *3 месяца — 400 ₽*).
 6. **Запуск бота**:
@@ -208,7 +212,6 @@ bash /opt/panel-naive-mieru/update.sh --repair -y
    ```
    https://your-domain.com/yookassa-webhook
    ```
-   *(Если используется нестандартный порт, например 8443: `https://your-domain.com:8443/yookassa-webhook`)*
 
 ### 2. CryptoBot
 1. Откройте [@CryptoBot](https://t.me/CryptoBot) в Telegram.
@@ -221,9 +224,35 @@ bash /opt/panel-naive-mieru/update.sh --repair -y
 
 ---
 
-## 💡 Управление и деплой
+## ❓ FAQ и решение проблем
 
-Все управление осуществляется через Docker Compose в директории проекта:
+<details>
+<summary><b>1. Где найти Inbound ID в панели RIXXX / 3x-ui?</b></summary>
+
+В веб-интерфейсе панели перейдите в раздел **"Подключения" (Inbounds)**. Номер в первой колонке таблицы или в деталях подключения и является `Inbound ID` (по умолчанию `1`).
+</details>
+
+<details>
+<summary><b>2. Бот не реагирует на команду /give от саппорта</b></summary>
+
+Убедитесь, что главный администратор предварительно выдал права этому пользователю командой `/grant <Telegram_ID>`. Также проверьте, что в панели добавлен хотя бы один активный хост.
+</details>
+
+<details>
+<summary><b>3. Как сбросить тестовый период пользователю?</b></summary>
+
+Отправьте команду `/delete_user <Telegram_ID>`. Бот удалит все старые ключи с сервера и сотрет запись о пользователе из базы данных. После этого пользователь сможет заново взять пробный период командой `/start`.
+</details>
+
+<details>
+<summary><b>4. Как перенести базу данных при обновлении сервера?</b></summary>
+
+База данных хранится в локальном файле `users.db` в корне проекта. Для переноса достаточно скопировать этот файл на новый сервер в директорию бота.
+</details>
+
+---
+
+## 💡 Управление и деплой
 
 ```bash
 # Просмотр логов бота в реальном времени
@@ -243,6 +272,7 @@ docker-compose up -d --build
 
 ## 📄 Лицензия и благодарности
 
-- Исходный проект: [vless-shopbot](https://github.com/evansvl/vless-shopbot)
-- RIXXX Edition & Enhancements: [detker](https://github.com/detkeroot)
-- Распространяется под лицензией [MIT](LICENSE).
+- **Оригинальный бот:** [vless-shopbot](https://github.com/evansvl/vless-shopbot) от [@evansvl](https://github.com/evansvl).
+- **Панель управления VPN:** [Panel-Naive-Mieru-by-RIXXX](https://github.com/cwash797-cmd/Panel-Naive-Mieru-by-RIXXX) от [@cwash797-cmd](https://github.com/cwash797-cmd).
+- **RIXXX Edition:** [detker](https://github.com/detkeroot).
+- Проект распространяется под открытой лицензией [MIT](LICENSE).
