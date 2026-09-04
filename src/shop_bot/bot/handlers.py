@@ -74,9 +74,9 @@ def generate_client_email(user_id: int, key_number: int, host_name: str, is_tria
         uname_clean = "user"
         
     host_clean = host_name.replace(' ', '').lower()
-    suffix = "trial@telegram.bot" if is_trial else f"{host_clean}.bot"
-    
-    return f"{uname_clean}_{user_id}_key{key_number}@{suffix}"
+    if is_trial:
+        return f"{uname_clean}_{user_id}_key{key_number}-trial@telegram.bot"
+    return f"{uname_clean}_{user_id}_key{key_number}@{host_clean}.bot"
 
 CRYPTO_BOT_TOKEN = get_setting("cryptobot_token")
 
