@@ -47,9 +47,15 @@ def main():
         flask_thread.start()
         
         logger.info("Flask server started in a background thread on http://0.0.0.0:1488")
-            
-        logger.info("Application is running. Bot can be started from the web panel.")
-        
+        logger.info("Application is running.")
+
+        # Автоматический запуск ботов при наличии конфигурации
+        shop_res = bot_controller.start_shop_bot()
+        logger.info(f"Auto-start ShopBot: {shop_res.get('message')}")
+
+        if database.get_setting("support_bot_token") and database.get_setting("support_group_id"):
+            supp_res = bot_controller.start_support_bot()
+            logger.info(f"Auto-start SupportBot: {supp_res.get('message')}")
         asyncio.create_task(periodic_subscription_check(bot_controller))
 
         await asyncio.Future()
