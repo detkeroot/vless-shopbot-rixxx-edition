@@ -13,14 +13,15 @@ from flask import Flask, request, render_template, redirect, url_for, flash, ses
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from shop_bot.modules import xui_api
+from shop_bot.modules import xui_api, lava_api
 from shop_bot.bot import handlers 
 from shop_bot.data_manager.database import (
     get_all_settings, update_setting, get_all_hosts, get_plans_for_host,
     create_host, delete_host, create_plan, delete_plan, get_user_count,
     get_total_keys_count, get_total_spent_sum, get_daily_stats_for_charts,
     get_recent_transactions, get_paginated_transactions, get_all_users, get_user_keys,
-    ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction
+    ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction,
+    find_and_complete_pending_transaction
 )
 
 _bot_controller = None
@@ -33,7 +34,8 @@ ALL_SETTINGS_KEYS = [
     "yookassa_secret_key", "sbp_enabled", "receipt_email", "cryptobot_token",
     "heleket_merchant_id", "heleket_api_key", "domain", "referral_percentage",
     "referral_discount", "ton_wallet_address", "tonapi_key", "force_subscription", "trial_enabled", "trial_duration_days", "enable_referrals", "minimum_withdrawal",
-    "support_group_id", "support_bot_token"
+    "support_group_id", "support_bot_token",
+    "lava_api_key", "lava_offer_id", "lava_webhook_key", "lava_sbp_only"
 ]
 
 def create_webhook_app(bot_controller_instance):
@@ -395,5 +397,48 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.error(f"Error in ton webhook handler: {e}", exc_info=True)
             return 'Error', 500
+    @flask_app.route('/lava-webhook', methods=['POST'])
+    def lava_webhook_handler():
+        try:
+            data = request.json or {}
+            logger.info(f"Received Lava.top webhook: {data}")
+
+            webhook_key = get_setting("lava_webhook_key")
+            if not lava_api.verify_webhook_auth(request.headers, webhook_key):
+                logger.warning("Lava.top webhook: Invalid authentication / X-Api-Key.")
+                return 'Forbidden', 403
+
+            event_type = data.get("eventType") or data.get("event_type")
+
+            # В Lava.top успешная оплата приходит как payment.success или subscription.recurring.payment.success
+            if event_type in ("payment.success", "subscription.recurring.payment.success"):
+                contract_id = data.get("contractId") or data.get("contract_id") or data.get("id")
+
+                if not contract_id:
+                    logger.warning("Lava.top webhook: Missing contractId in payload.")
+                    return json.dumps({"status": "ok"}), 200, {'Content-Type': 'application/json'}
+
+                metadata = find_and_complete_pending_transaction(contract_id, "Lava.top")
+
+                if metadata:
+                    logger.info(f"Lava.top payment confirmed for contract_id: {contract_id}")
+                    bot = _bot_controller.get_bot_instance()
+                    loop = current_app.config.get('EVENT_LOOP')
+                    payment_processor = handlers.process_successful_payment
+
+                    if bot and loop and loop.is_running():
+                        asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
+                    else:
+                        logger.error("Lava.top webhook: Bot or event loop is not running.")
+                else:
+                    logger.info(f"Lava.top webhook: Transaction {contract_id} already completed or not found.")
+
+            # Возвращаем 200 на любые события, включая нецелевые (refund, failed), как требует документация Lava.top
+            return json.dumps({"status": "ok"}), 200, {'Content-Type': 'application/json'}
+
+        except Exception as e:
+            logger.error(f"Error in lava webhook handler: {e}", exc_info=True)
+            return 'Error', 500
+
 
     return flask_app

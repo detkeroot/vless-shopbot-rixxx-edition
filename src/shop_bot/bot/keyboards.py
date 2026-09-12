@@ -116,11 +116,19 @@ def create_payment_method_keyboard(payment_methods: dict, action: str, key_id: i
         callback_data_ton = "pay_tonconnect"
         logger.info(f"Creating TON button with callback_data: '{callback_data_ton}'")
         builder.button(text="🪙 TON Connect", callback_data=callback_data_ton)
+    if payment_methods and payment_methods.get("lava"):
+        builder.button(text="⚡ СБП (Lava.top)", callback_data="pay_lava")
 
     builder.button(text="⬅️ Назад", callback_data="back_to_email_prompt")
     builder.adjust(1)
     return builder.as_markup()
 
+def create_lava_payment_keyboard(payment_url: str, contract_id: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="💳 Оплатить через СБП", url=payment_url)
+    builder.button(text="🔄 Проверить оплату", callback_data=f"check_lava_{contract_id}")
+    builder.adjust(1)
+    return builder.as_markup()
 def create_ton_connect_keyboard(connect_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="🚀 Открыть кошелек", url=connect_url)

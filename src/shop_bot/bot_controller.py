@@ -129,6 +129,10 @@ class BotController:
             tonapi_key = database.get_setting("tonapi_key")
             tonconnect_enabled = bool(ton_wallet_address and tonapi_key)
 
+            lava_api_key = database.get_setting("lava_api_key")
+            lava_offer_id = database.get_setting("lava_offer_id")
+            lava_enabled = bool(lava_api_key and lava_offer_id)
+
             if yookassa_enabled:
                 Configuration.account_id = yookassa_shop_id
                 Configuration.secret_key = yookassa_secret_key
@@ -137,7 +141,8 @@ class BotController:
                 "yookassa": yookassa_enabled,
                 "heleket": heleket_enabled,
                 "cryptobot": cryptobot_enabled,
-                "tonconnect": tonconnect_enabled
+                "tonconnect": tonconnect_enabled,
+                "lava": lava_enabled
             }
             handlers.TELEGRAM_BOT_USERNAME = bot_username
             handlers.ADMIN_ID = admin_id

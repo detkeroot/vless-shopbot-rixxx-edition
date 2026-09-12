@@ -386,6 +386,43 @@
 					/>
 					<button type="button" class="toggle-password">👁️</button>
 				</div>
+				<h2>Настройка Lava.top (СБП и Карты)</h2>
+				<div class="form-group password-wrapper">
+					<label for="lava_api_key">Lava.top API Key (Интеграции -&gt; API):</label>
+					<input
+						type="password"
+						id="lava_api_key"
+						name="lava_api_key"
+						value="{{ settings.lava_api_key or '' }}"
+					/>
+					<button type="button" class="toggle-password">👁️</button>
+				</div>
+				<div class="form-group">
+					<label for="lava_offer_id">Lava.top Offer ID (Продукт с ценой по запросу):</label>
+					<input
+						type="text"
+						id="lava_offer_id"
+						name="lava_offer_id"
+						placeholder="836b9fc5-7ae9-4a27-9642-592bc44072b7"
+						value="{{ settings.lava_offer_id or '' }}"
+					/>
+				</div>
+				<div class="form-group password-wrapper">
+					<label for="lava_webhook_key">Lava.top Webhook Key (Ключ вашего сервиса для X-Api-Key):</label>
+					<input
+						type="password"
+						id="lava_webhook_key"
+						name="lava_webhook_key"
+						value="{{ settings.lava_webhook_key or '' }}"
+					/>
+					<button type="button" class="toggle-password">👁️</button>
+				</div>
+				<div class="form-group form-group-checkbox">
+					<input type="hidden" name="lava_sbp_only" value="false" />
+					<input type="checkbox" id="lava_sbp_only" name="lava_sbp_only"
+					value="true" {% if settings.lava_sbp_only != 'false' %}checked{% endif %}>
+					<label for="lava_sbp_only">Использовать СБП (PAY2ME/SBP) по умолчанию</label>
+				</div>
 			</section>
 
 			<section class="settings-section">

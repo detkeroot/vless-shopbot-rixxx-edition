@@ -32,7 +32,7 @@ from aiogram.enums import ChatMemberStatus
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from shop_bot.bot import keyboards
-from shop_bot.modules import xui_api
+from shop_bot.modules import xui_api, lava_api
 from shop_bot.data_manager.database import (
     get_user, add_new_key, get_user_keys, update_user_stats,
     register_user_if_not_exists, get_next_key_number, get_key_by_id,
@@ -41,7 +41,8 @@ from shop_bot.data_manager.database import (
     add_to_referral_balance, create_pending_transaction, get_all_users,
     set_referral_balance, set_referral_balance_all,
     set_user_give_permission, hard_delete_user_db, ban_user, unban_user, delete_user_keys,
-    set_custom_referral_percentage, remove_custom_referral_percentage
+    set_custom_referral_percentage, remove_custom_referral_percentage,
+    find_and_complete_pending_transaction
 )
 
 from shop_bot.config import (
@@ -1252,14 +1253,134 @@ def get_user_router() -> Router:
             await callback.message.answer("❌ Не удалось создать ссылку для TON Connect. Попробуйте позже.")
             await state.clear()
 
-        @user_router.message(F.text)
-        @registration_required
-        async def unknown_message_handler(message: types.Message):
-            if message.text.startswith('/'):
-                await message.answer("Такой команды не существует. Попробуйте /start.")
-            else:
-                await message.answer("Я не понимаю эту команду. Пожалуйста, используйте кнопки меню.")
+    @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_lava")
+    async def create_lava_invoice_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+        await callback.answer("Создаю счет СБП через Lava.top...")
 
+        data = await state.get_data()
+        plan_id = data.get('plan_id')
+        plan = get_plan_by_id(plan_id)
+        user_data = get_user(callback.from_user.id)
+
+        if not plan:
+            await callback.message.edit_text("❌ Произошла ошибка при выборе тарифа.")
+            await state.clear()
+            return
+
+        base_price = Decimal(str(plan['price']))
+        price_rub_decimal = base_price
+
+        if user_data and user_data.get('referred_by') and user_data.get('total_spent', 0) == 0:
+            discount_percentage_str = get_setting("referral_discount") or "0"
+            discount_percentage = Decimal(discount_percentage_str)
+            if discount_percentage > 0:
+                discount_amount = (base_price * discount_percentage / 100).quantize(Decimal("0.01"))
+                price_rub_decimal = base_price - discount_amount
+
+        final_price_float = float(price_rub_decimal)
+        months = plan['months']
+        user_id = callback.from_user.id
+        host_name = data.get('host_name')
+        action = data.get('action', 'new')
+        key_id = data.get('key_id')
+        customer_email = data.get('customer_email') or f"user{user_id}@telegram.bot"
+
+        lava_api_key = get_setting("lava_api_key")
+        lava_offer_id = get_setting("lava_offer_id")
+        lava_sbp_only = get_setting("lava_sbp_only") != "false"
+        bot_username = get_setting("telegram_bot_username")
+
+        if not lava_api_key or not lava_offer_id:
+            await callback.message.edit_text("❌ Оплата через Lava.top временно недоступна (не настроены ключи в панели).")
+            await state.clear()
+            return
+
+        invoice_result = await lava_api.create_invoice(
+            amount=final_price_float,
+            email=customer_email,
+            api_key=lava_api_key,
+            offer_id=lava_offer_id,
+            bot_username=bot_username,
+            sbp_mode=lava_sbp_only
+        )
+
+        if not invoice_result or not invoice_result.get("payment_url"):
+            await callback.message.edit_text("❌ Не удалось создать счет на оплату в Lava.top. Попробуйте позже или выберите другой способ.")
+            await state.clear()
+            return
+
+        payment_id = invoice_result["invoice_id"]
+        payment_url = invoice_result["payment_url"]
+
+        metadata = {
+            "user_id": user_id,
+            "months": months,
+            "price": final_price_float,
+            "action": action,
+            "key_id": key_id,
+            "host_name": host_name,
+            "plan_id": plan_id,
+            "customer_email": customer_email,
+            "payment_method": "Lava.top SBP" if lava_sbp_only else "Lava.top"
+        }
+
+        create_pending_transaction(payment_id, user_id, final_price_float, metadata)
+
+        method_name = "⚡ СБП (Система быстрых платежей)" if lava_sbp_only else "💳 Lava.top"
+        text = (
+            f"<b>Счет на оплату готов!</b>\n\n"
+            f"<b>Способ оплаты:</b> {method_name}\n"
+            f"<b>Сумма к оплате:</b> <code>{final_price_float:.2f} RUB</code>\n"
+            f"<b>Тариф:</b> {plan['plan_name']} ({months} мес.)\n\n"
+            f"Нажмите кнопку <b>«Оплатить через СБП»</b> для перехода в банковское приложение.\n"
+            f"После завершения платежа нажмите <b>«Проверить оплату»</b>."
+        )
+
+        await callback.message.edit_text(
+            text,
+            reply_markup=keyboards.create_lava_payment_keyboard(payment_url, payment_id),
+            parse_mode="HTML"
+        )
+        await state.clear()
+
+    @user_router.callback_query(F.data.startswith("check_lava_"))
+    async def check_lava_payment_handler(callback: types.CallbackQuery, bot: Bot):
+        contract_id = callback.data.replace("check_lava_", "").strip()
+        lava_api_key = get_setting("lava_api_key")
+
+        if not lava_api_key:
+            return await callback.answer("Ошибка: не настроен API-ключ Lava.top.", show_alert=True)
+
+        await callback.answer("Проверяю статус оплаты в Lava.top...")
+
+        status_result = await lava_api.get_invoice_status(contract_id, lava_api_key)
+
+        if status_result and status_result.get("is_paid"):
+            completed_meta = find_and_complete_pending_transaction(contract_id, "Lava.top")
+            if completed_meta:
+                await process_successful_payment(bot, completed_meta)
+                try:
+                    await callback.message.edit_text(
+                        "✅ <b>Оплата подтверждена!</b>\n\nВаша подписка успешно активирована. Приятного пользования!",
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+            else:
+                await callback.message.answer("✅ Оплата уже была обработана ранее.")
+        else:
+            await callback.answer(
+                "⏳ Оплата пока не подтверждена платежной системой. Если вы только что оплатили, подождите 10-15 секунд и нажмите снова.",
+                show_alert=True
+            )
+
+    @user_router.message(F.text)
+    @registration_required
+    async def unknown_message_handler(message: types.Message):
+        if message.text.startswith('/'):
+            await message.answer("Такой команды не существует. Попробуйте /start.")
+        else:
+            await message.answer("Я не понимаю эту команду. Пожалуйста, используйте кнопки меню.")
     @user_router.message(Command(commands=["give"]))
     async def admin_give_key(message: types.Message, bot: Bot):
         if not can_use_give(message.from_user.id):

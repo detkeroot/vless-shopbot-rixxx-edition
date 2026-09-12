@@ -114,6 +114,10 @@ def initialize_db():
                 "domain": None,
                 "ton_wallet_address": None,
                 "tonapi_key": None,
+                "lava_api_key": None,
+                "lava_offer_id": None,
+                "lava_webhook_key": None,
+                "lava_sbp_only": "true",
                 "android_url": "https://telegra.ph/Instrukciya-Android-11-09",
                 "windows_url": "https://telegra.ph/Instrukciya-Windows-11-09",
                 "ios_url": "https://telegra.ph/Instrukcii-ios-11-09",
@@ -527,6 +531,25 @@ def find_and_complete_ton_transaction(payment_id: str, amount_ton: float) -> dic
     except sqlite3.Error as e:
         logging.error(f"Failed to complete TON transaction {payment_id}: {e}")
         return None
+def find_and_complete_pending_transaction(payment_id: str, payment_method: str = "Lava.top") -> dict | None:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM transactions WHERE payment_id = ? AND status = 'pending'", (payment_id,))
+            transaction = cursor.fetchone()
+            if not transaction:
+                return None
+            cursor.execute(
+                "UPDATE transactions SET status = 'paid', payment_method = ? WHERE payment_id = ?",
+                (payment_method, payment_id)
+            )
+            conn.commit()
+            return json.loads(transaction['metadata'])
+    except sqlite3.Error as e:
+        logging.error(f"Failed to complete pending transaction {payment_id}: {e}")
+        return None
+
 
 def log_transaction(username: str, transaction_id: str | None, payment_id: str | None, user_id: int, status: str, amount_rub: float, amount_currency: float | None, currency_name: str | None, payment_method: str, metadata: str):
     try:
