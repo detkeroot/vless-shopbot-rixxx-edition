@@ -94,6 +94,21 @@ async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: 
                             logger.error("User was not found after disconnect.")
                             return None
 
+        # Автоматический довыпуск в Федерацию RIXXX (v1.10+ / v1.11+), если настроены связанные ноды
+        if user_id:
+            try:
+                async with session.post(f"{base_url}/api/users/{user_id}/federation/deploy") as fed_resp:
+                    if fed_resp.status == 200:
+                        fed_data = await fed_resp.json()
+                        logger.info(f"RIXXX Federation deploy succeeded for user {user_id}: {fed_data.get('results')}")
+                    elif fed_resp.status == 400:
+                        # Одиночный сервер без федерации — штатное поведение
+                        pass
+                    else:
+                        logger.warning(f"RIXXX Federation deploy returned status {fed_resp.status}")
+            except Exception as e:
+                logger.warning(f"RIXXX Federation deploy skipped: {e}")
+
         connection_string = None
         if user_id:
             for _ in range(3):
@@ -144,6 +159,14 @@ async def delete_client_on_host(host_name: str, client_email: str) -> bool:
                 existing_user = next((u for u in users if u.get('username') == safe_username), None)
                 if existing_user: user_id = existing_user['id']
         if user_id:
+            # Автоматический отзыв пользователя из Федерации RIXXX (v1.11+)
+            try:
+                async with session.post(f"{base_url}/api/users/{user_id}/federation/undeploy", json={"email": client_email}) as fed_resp:
+                    if fed_resp.status == 200:
+                        logger.info(f"RIXXX Federation undeploy for email {client_email} succeeded.")
+            except Exception as e:
+                logger.warning(f"RIXXX Federation undeploy skipped: {e}")
+
             try:
                 async with session.delete(f"{base_url}/api/users/{user_id}") as resp:
                     if resp.status == 200: return True
