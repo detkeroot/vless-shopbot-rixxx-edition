@@ -1,4 +1,4 @@
-# Файл: /home/detker/Документы/repository/Panel-Naive-Mieru-by-RIXXX/PROMO_FLYER.md
+# Файл: /home/detker/Документы/repository/VPN/Panel-Naive-Mieru-by-RIXXX/PROMO_FLYER.md
 
 # 📄 Памятка пользователя: Двухзвенный каскадный VPN
 

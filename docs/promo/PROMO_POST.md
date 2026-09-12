@@ -1,4 +1,4 @@
-# Файл: /home/detker/Документы/repository/Panel-Naive-Mieru-by-RIXXX/PROMO_POST.md
+# Файл: /home/detker/Документы/repository/VPN/Panel-Naive-Mieru-by-RIXXX/PROMO_POST.md
 
 # 🛡 Надежный VPN на каскаде (Москва → Финляндия)
 
