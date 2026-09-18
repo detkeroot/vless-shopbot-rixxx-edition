@@ -22,14 +22,17 @@
 						/>
 					</div>
 					<div class="form-group">
-						<label for="host_url">URL панели XUI:</label>
+						<label for="host_url">URL панели (RIXXX или 3X-UI):</label>
 						<input
 							type="url"
 							id="host_url"
 							name="host_url"
-							placeholder="http://123.45.67.89:54321"
+							placeholder="https://admin:pass@hub.domain.com/secret_path/ или http://ip:port"
 							required
 						/>
+						<small style="display:block;margin-top:4px;color:#888;font-size:0.85em;">
+							Для панели RIXXX обязательно укажите Basic Auth: <code>https://логин:пароль@домен/секретный-путь/</code>. Для 3X-UI: <code>http://ip:port</code>.
+						</small>
 					</div>
 					<div class="form-group">
 						<label for="host_username">Логин XUI:</label>
@@ -46,13 +49,16 @@
 						<button type="button" class="toggle-password">👁️</button>
 					</div>
 					<div class="form-group">
-						<label for="host_inbound_id">ID входящего подключения:</label>
+						<label for="host_inbound_id">ID входящего подключения (Inbound ID):</label>
 						<input
 							type="number"
 							id="host_inbound_id"
 							name="host_inbound_id"
-							required
+							value="1"
 						/>
+						<small style="display:block;margin-top:4px;color:#888;font-size:0.85em;">
+							Для панели RIXXX оставьте <b>1</b> (не используется). Для 3X-UI укажите номер вашего инбаунда.
+						</small>
 					</div>
 					<button type="submit" class="button button-primary">Добавить</button>
 				</form>

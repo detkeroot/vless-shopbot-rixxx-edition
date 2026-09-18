@@ -138,13 +138,13 @@ def create_webhook_app(bot_controller_instance):
             if 'panel_password' in request.form and request.form.get('panel_password'):
                 update_setting('panel_password', request.form.get('panel_password'))
 
-            for checkbox_key in ['force_subscription', 'sbp_enabled', 'trial_enabled', 'enable_referrals']:
+            for checkbox_key in ['force_subscription', 'sbp_enabled', 'trial_enabled', 'enable_referrals', 'lava_sbp_only']:
                 values = request.form.getlist(checkbox_key)
                 value = values[-1] if values else 'false'
                 update_setting(checkbox_key, 'true' if value == 'true' else 'false')
 
             for key in ALL_SETTINGS_KEYS:
-                if key in ['panel_password', 'force_subscription', 'sbp_enabled', 'trial_enabled', 'enable_referrals']:
+                if key in ['panel_password', 'force_subscription', 'sbp_enabled', 'trial_enabled', 'enable_referrals', 'lava_sbp_only']:
                     continue
                 update_setting(key, request.form.get(key, ''))
 
@@ -229,7 +229,7 @@ def create_webhook_app(bot_controller_instance):
             url=request.form['host_url'],
             user=request.form['host_username'],
             passwd=request.form['host_pass'],
-            inbound=int(request.form['host_inbound_id'])
+            inbound=int(request.form.get('host_inbound_id') or 1)
         )
         flash(f"Хост '{request.form['host_name']}' успешно добавлен.", 'success')
         return redirect(url_for('settings_page'))
