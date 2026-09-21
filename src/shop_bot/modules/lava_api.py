@@ -7,6 +7,62 @@ logger = logging.getLogger(__name__)
 
 LAVA_GATE_BASE_URL = "https://gate.lava.top"
 
+async def resolve_offer_id(
+    api_key: str,
+    identifier: str,
+    session: Optional[aiohttp.ClientSession] = None,
+    timeout_sec: int = 10
+) -> str:
+    """
+    Автоматически определяет реальный Offer ID в Lava.top.
+    Если пользователь указал Product ID (UUID товара) вместо Offer ID
+    (у товаров с динамической ценой в интерфейсе Lava нет кнопки «Купить»),
+    функция запрашивает GET /api/v2/products?feedVisibility=ALL и находит Offer ID этого товара.
+    """
+    if not api_key or not identifier:
+        return identifier
+
+    url = f"{LAVA_GATE_BASE_URL}/api/v2/products?feedVisibility=ALL"
+    headers = {
+        "X-Api-Key": api_key,
+        "Accept": "application/json"
+    }
+
+    own_session = False
+    if session is None:
+        own_session = True
+        session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout_sec))
+
+    try:
+        async with session.get(url, headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                items = data.get("items", [])
+                for item in items:
+                    # Проверяем совпадение по Product ID
+                    if item.get("id") == identifier:
+                        offers = item.get("offers", [])
+                        if offers and offers[0].get("id"):
+                            resolved_id = offers[0]["id"]
+                            logger.info(
+                                f"Lava.top: Auto-resolved Product ID '{identifier}' "
+                                f"to Offer ID '{resolved_id}' for product '{item.get('title')}'"
+                            )
+                            return resolved_id
+                    # Проверяем, может это уже Offer ID
+                    for offer in item.get("offers", []):
+                        if offer.get("id") == identifier:
+                            return identifier
+            else:
+                logger.warning(f"Lava.top resolve_offer_id HTTP {response.status}: {await response.text()}")
+    except Exception as e:
+        logger.warning(f"Lava.top resolve_offer_id error: {e}")
+    finally:
+        if own_session and session and not session.closed:
+            await session.close()
+
+    return identifier
+
 async def create_invoice(
     amount: float,
     email: str,
@@ -67,6 +123,32 @@ async def create_invoice(
                         "amount": payload["amount"],
                         "currency": payload["currency"]
                     }
+                elif response.status == 404:
+                    logger.warning(f"Lava.top returned 404 for offerId '{offer_id}'. Attempting auto-resolution from Product ID...")
+                    resolved_id = await resolve_offer_id(api_key, offer_id, session=session, timeout_sec=timeout_sec)
+                    if resolved_id and resolved_id != offer_id:
+                        logger.info(f"Lava.top: Retrying invoice creation with resolved Offer ID: {resolved_id}")
+                        payload["offerId"] = resolved_id
+                        async with session.post(url, json=payload, headers=headers) as retry_resp:
+                            retry_data = await retry_resp.json()
+                            if retry_resp.status in (200, 201):
+                                invoice_id = retry_data.get("id")
+                                payment_url = retry_data.get("paymentUrl")
+                                status = retry_data.get("status")
+                                logger.info(f"Lava.top invoice created successfully on retry: ID={invoice_id}, Status={status}")
+                                return {
+                                    "invoice_id": invoice_id,
+                                    "payment_url": payment_url,
+                                    "status": status,
+                                    "amount": payload["amount"],
+                                    "currency": payload["currency"]
+                                }
+                            else:
+                                logger.error(f"Lava.top API retry error: Status={retry_resp.status}, Response={retry_data}")
+                                return None
+                    else:
+                        logger.error(f"Lava.top API error: Status={response.status}, Response={response_data}")
+                        return None
                 else:
                     logger.error(
                         f"Lava.top API error: Status={response.status}, "

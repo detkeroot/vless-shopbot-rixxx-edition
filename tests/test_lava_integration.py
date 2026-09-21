@@ -71,6 +71,79 @@ class TestLavaIntegration(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(result)
 
+    async def test_resolve_offer_id_from_product_id(self):
+        mock_products_data = {
+            "items": [
+                {
+                    "id": "product_uuid_999",
+                    "title": "VPN Product",
+                    "offers": [
+                        {"id": "real_offer_uuid_888", "name": "Basic"}
+                    ]
+                }
+            ]
+        }
+        mock_resp = AsyncMock()
+        mock_resp.status = 200
+        mock_resp.json = AsyncMock(return_value=mock_products_data)
+
+        mock_get = MagicMock()
+        mock_get.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_get.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("aiohttp.ClientSession.get", return_value=mock_get):
+            resolved = await lava_api.resolve_offer_id(self.api_key, "product_uuid_999")
+
+        self.assertEqual(resolved, "real_offer_uuid_888")
+
+    async def test_create_invoice_auto_resolves_404(self):
+        # 1st post -> 404
+        resp_404 = AsyncMock()
+        resp_404.status = 404
+        resp_404.json = AsyncMock(return_value={"error": "Product with offer id = 'product_uuid_999' not found"})
+
+        # 2nd post -> 201 success
+        resp_201 = AsyncMock()
+        resp_201.status = 201
+        resp_201.json = AsyncMock(return_value={
+            "id": "invoice_auto_resolved",
+            "paymentUrl": "https://gate.lava.top/invoice/123",
+            "status": "new"
+        })
+
+        mock_post = MagicMock()
+        mock_post.__aenter__ = AsyncMock(side_effect=[resp_404, resp_201])
+        mock_post.__aexit__ = AsyncMock(return_value=None)
+
+        # get -> returns product with offers
+        resp_get = AsyncMock()
+        resp_get.status = 200
+        resp_get.json = AsyncMock(return_value={
+            "items": [
+                {
+                    "id": "product_uuid_999",
+                    "offers": [{"id": "resolved_offer_111"}]
+                }
+            ]
+        })
+        mock_get = MagicMock()
+        mock_get.__aenter__ = AsyncMock(return_value=resp_get)
+        mock_get.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("aiohttp.ClientSession.post", return_value=mock_post), \
+             patch("aiohttp.ClientSession.get", return_value=mock_get):
+            result = await lava_api.create_invoice(
+                amount=150.0,
+                email="user@test.bot",
+                api_key=self.api_key,
+                offer_id="product_uuid_999",
+                bot_username=self.bot_username
+            )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["invoice_id"], "invoice_auto_resolved")
+        self.assertEqual(result["payment_url"], "https://gate.lava.top/invoice/123")
+
     async def test_get_invoice_status_completed(self):
         mock_resp = AsyncMock()
         mock_resp.status = 200
